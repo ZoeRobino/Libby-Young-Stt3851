@@ -1,6 +1,6 @@
 ---
 title: "Final project 1"
-author: "Libby Young"
+author: "Libby Young, Zoe Robino & Grace Brislin"
 date: "4/7/2020"
 output: html_document
 ---
