@@ -1,0 +1,140 @@
+---
+title: "Final project 1"
+author: "Libby Young"
+date: "4/7/2020"
+output: html_document
+---
+
+```{r, echo=FALSE, include=FALSE}
+library(readxl)
+library(skimr)
+library(ggplot2)
+library(knitr)
+library(dplyr)
+library(stats)
+library(car)
+```
+
+```{r, echo=FALSE, include=FALSE}
+library(readxl)
+Housing <- read_excel("Housing.xlsx")
+
+```
+
+
+
+#Data Summary: 
+
+Examine the statistics and values for each variable. 
+Are any missing? Do any values need clarification or modification? If so, why and what did you do?
+
+At first glance, we want to remove the entire 'id' column from this dataset because all it does is repeat the identifier from the numbered column that already identifies each point. We also removed the yearbuilt column becasue it was the same as age stardardized.
+
+```{r}
+Housing$id <- NULL
+Housing$yearbuilt <- NULL
+skim(Housing)
+```
+
+```{r}
+#changing the elementary school district and the status to be numeric
+elem_numeric <- as.numeric(as.factor(Housing$elem))
+status_numeric <- as.numeric(as.factor(Housing$status))
+```
+
+This ranks the two categorical variables (Elementary school district and Status: sold, pending sale, or active listing) and puts them into a numeric form.
+
+#Exploratory Data Analysis
+
+```{r}
+pairs(Housing[,1:7])
+```
+
+Looking at these, it appears that size, lot, bath, age standardized, and garage size may have some kind of positive correlation. It also appears that bedrooms has a negative correlation. None of these correlations appear to be very strong and they all look like they have a lot of variation.
+
+```{r}
+#relationship with price for elem and status in numeric form
+pairs(~price +status_numeric+elem_numeric, data = Housing)
+```
+
+These are the two categorical variables. Status appears to decrease the price as houses move from active listing, to pending, to sold. It also appears that certain elementary school districs have houses in a certain price range.
+
+```{r}
+Housing %>%
+  select(price,size,lot,bath,bedrooms,agestandardized,garagesize) %>%
+  cor()
+```
+ All of these correlations appear to be fairly weak, which was apparent in the scatterplot matrix. Age standardized and bedrooms seem to interact well, with a correlation of -.04. Garagesize and age standardized also have a higher correlation of 0.54. Bathroom and size have a coefficient of .47. The best indicator or price in a non-interactive model appears to be garagesize with a coefficient of .36.
+
+
+#Initial Modeling & Modeling Modification
+
+Using your conclusions from the exploratory data analysis, build a regression model 
+report your findings.
+
+```{r}
+#model with signifigant variables
+m1 <- lm(price ~ lot + status + elem + garagesize + agestandardized:bedrooms, data=Housing)
+summary(m1)
+vif(m1)
+```
+The F-Statistic is low as is the R-squared value, which indicates some problems. The p-value is very low though, which is promising.
+
+```{r}
+#testing model with all variables except id, agestandardized, and yearbuilt since they showed little to no significance with related to price
+m2<-lm(price~ lot + size:bath + elem + garagesize:agestandardized + status, data = Housing)
+summary(m2)
+vif(m2)
+```
+
+```{r}
+m3 <- lm(price ~ agestandardized:bedrooms + status + garagesize:agestandardized + bath:size, data = Housing)
+summary(m3)
+vif(m3)
+```
+ 
+ This has a bad p-value, low F-Stastic, and low R-squared
+```{r}
+#cubed
+m4 <- lm(price ~ I((lot)^3) + I((size)^3) + I((bedrooms)^3) + I((garagesize)^3) + I((bath)^3) + status_numeric + elem_numeric, data = Housing)
+summary(m4)
+vif(m4)
+```
+ The R-squared value is low here.
+```{r}
+#squared-rooted
+m5 <- lm(price ~ I((lot)^.5) + I((size)^.5) + I((bedrooms)^.5) + I((garagesize)^.5) + I((bath)^.5) + status_numeric + elem_numeric, data = Housing)
+summary(m5)
+vif(m5)
+```
+
+
+
+#Conclusions:
+
+Present your final model and diagnostic plots in support of that final model. 
+In that presentation of the final model, comment on the R-squared value and its interpretation, 
+give 95% confidence intervals for each of the β coefficients in your model, and 
+illustrate your model’s use with a 95% confidence interval for the mean response 
+and a 95% prediction interval for individual response for a hypothetical house of your choosing.
+
+```{r}
+Im5_Final<- lm(price ~ size:lot +  size:bath + status + elem, data = Housing)
+summary(Im5_Final)
+vif(Im5_Final)
+par(mfrow = c(2, 2))
+plot(Im5_Final)
+```
+This is the best combination we came up with. The F-Statistic appears to be higher than the others, the p-value is < 0.05, and the R-squared value is higher than the other potential models. The R-squared of .4272 means that .6838 of the variation from the model cannot be explained, meaning that this is not very precise. We feel that this is fair though, considering the great variation in every different aspect from house to house. 
+
+```{r}
+confint(Im5_Final)
+```
+
+```{r}
+#testing 95% confidence interval
+predictionhouse <- data.frame(size = 2.080, lot = 2, bath = 2, status = 'pen', elem = 'edge')
+predict(Im5_Final, predictionhouse, interval = "confidence")
+```
+With 95% confidence, a house with size = 2.080, lot = 2, bath = 2, status = 'pen', elem = 'edge' would be between 219,483.40 dollars and 283,950.20 dollars, with the 50th percentile at 251,716.80 dollars.
+The actual price of this randomly selected house was 259,000.00 dollars. This not only fit within the confidence interval, but it was very near the 50th percentile. This model was sucessful.
